@@ -3,10 +3,14 @@ import matplotlib.pyplot as plt
 
 
 def main():
-    tomograph = Tomograph(10, 50, 2, "./data/test_balls.png")
-    for i in range(36):
+    aplha = 0.5
+
+    tomograph = Tomograph(aplha, 100, 1, "./data/test_balls.png")
+    for i in range(int(360 / aplha)):
         tomograph.measure()
         tomograph.next_step()
+        tomograph.construct(i)
+    # tomograph.normalize()
     detectors = tomograph._get_detectors()
 
     f, axarr = plt.subplots(1, 3, figsize=(16,8))
@@ -19,7 +23,7 @@ def main():
     axarr[1].imshow(tomograph.sinogram, cmap="gray")
 
     axarr[2].set_title('Reconstructed img')
-    # axarr[2].imshow()
+    axarr[2].imshow(tomograph.constructed_img, cmap="gray")
 
     plt.show()
 

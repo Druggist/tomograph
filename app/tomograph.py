@@ -69,6 +69,7 @@ class Tomograph:
             sys.exit("Too many detectors or detectors are too wide.")
         self.step = 0
         self.sinogram = []
+        self.constructed_img = np.array([[0 for col in range(len(self.orginal_img[0]))] for row in range(len(self.orginal_img))])
 
     def _get_detectors(self):
         tmp = []
@@ -99,6 +100,24 @@ class Tomograph:
             row.append(int(average))
         self.sinogram.append(row)
         return row
+
+    def construct(self, step):
+        detectors = self._get_detectors()
+        it = 0
+        for d in detectors:
+            line = d.get_connecting_line_points()
+            for p in line:
+                self.constructed_img[p[0]-1][p[1]-1] = self.sinogram[step][it]
+            it += 1
+
+    def normalize(self):
+        max_val = self.constructed_img.max()
+        min_val = self.constructed_img.min()
+
+        for i in range(len(self.constructed_img)):
+            for j in range(len(self.constructed_img[i])):
+                self.constructed_img[i][j] = self.constructed_img[i][j] - min_val / (max_val - min_val)
+
 
     def next_step(self):
         self.step += 1
