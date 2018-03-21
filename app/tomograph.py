@@ -17,47 +17,31 @@ class Detector:
         return self.line
 
     def _get_connecting_line_points(self):
-        x = self.a
-        y = self.b
-        if self.a < self.x:
-            xi = 1
-            dx = self.x - self.a
-        else:
-            xi = -1
-            dx = self.a - self.x
-        if self.b < self.y:
-            yi = 1
-            dy = self.y - self.b
-        else:
-            yi = -1
-            dy = self.b - self.y
-        line = [(x, y)]
+        line = []
+        dx = self.x - self.a
+        dy = self.y - self.b
+
+        xsign = 1 if dx > 0 else -1
+        ysign = 1 if dy > 0 else -1
+
+        dx = abs(dx)
+        dy = abs(dy)
+
         if dx > dy:
-            ai = (dy - dx) * 2
-            bi = dy * 2
-            d = bi - dx
-            while x != self.x:
-                if d >= 0:
-                    x += xi
-                    y += yi
-                    d += ai
-                else:
-                    d += bi
-                    x += xi
-                line.append((x, y))
+            xx, xy, yx, yy = xsign, 0, 0, ysign
         else:
-            ai = (dx - dy) * 2
-            bi = dx * 2
-            d = bi - dy
-            while y != self.y:
-                if d >= 0:
-                    x += xi
-                    y += yi
-                    d += ai
-                else:
-                    d += bi
-                    y += yi
-                line.append((x, y))
+            dx, dy = dy, dx
+            xx, xy, yx, yy = 0, ysign, xsign, 0
+
+        D = 2 * dy - dx
+        y = 0
+
+        for x in range(dx + 1):
+            line.append((self.a + x * xx + y * yx - 1, self.b + x * xy + y * yy - 1))
+            if D >= 0:
+                y += 1
+                D -= 2 * dx
+            D += 2 * dy
         return line
 
 
@@ -65,34 +49,29 @@ class Tomograph:
     def __init__(self, alpha, detector_count, detector_width, image_path):
         self.alpha = alpha
         self.current_alpha = 0
-        self.detector_count = detector_count if detector_count % 2 == 1 else detector_count + 1
+        self.detector_count = detector_count
         self.detector_width = detector_width
         self.orginal_img = np.array(Image.open(image_path).convert('L'))
-        self.radius = min(len(self.orginal_img), len(self.orginal_img[0])) / 2
-        if self.detector_count * self.detector_width >= self.radius * 2:
+        self.radius = min(self.orginal_img.shape) / 2
+        if self.detector_count * self.detector_width > self.radius * 2:
             sys.exit("Too many detectors or detectors are too wide.")
         self.step = 0
-        self.sinogram = np.zeros((int(360 / self.alpha), self.detector_count))
-        self.constructed_img = np.zeros(self.orginal_img.shape)
+        self.sinogram = np.zeros((self.detector_count, int(180 / self.alpha)))
+        self.constructed_img = np.ones(self.orginal_img.shape)
         self.detectors = None
 
     def _get_detectors(self):
         if self.detectors is not None:
             return self.detectors
-        tmp = []
-        for i in range(self.detector_count):
-            start = (self.radius - self.radius * np.cos(np.deg2rad(self.current_alpha + self.detector_width * i)),
-                     self.radius + self.radius * np.sin(np.deg2rad(self.current_alpha + self.detector_width * i)))
-            end = (self.radius - self.radius * np.cos(np.deg2rad(self.current_alpha + 180 % 360 + self.detector_width * i)),
-                   self.radius + self.radius * np.sin(np.deg2rad(self.current_alpha + 180 % 360 + self.detector_width * i)))
-            tmp.append((start, end))
-
-        # parallel lines between detectors do not cross in center of image
-        detectors = []
-        for i in range(len(tmp)):
-            detectors.append(Detector(tmp[-1 - i][0][0], tmp[-1 - i][0][1], tmp[i][1][0], tmp[i][1][1]))
-        self.detectors = detectors
-        return detectors
+        self.detectors = [
+            Detector(
+                self.radius - self.radius * np.cos(np.deg2rad(self.current_alpha + self.detector_width * i)),
+                self.radius + self.radius * np.sin(np.deg2rad(self.current_alpha + self.detector_width * i)),
+                self.radius - self.radius * np.cos(np.deg2rad(self.current_alpha + 180 % 360 + self.detector_width * ((self.detector_count - 1) - i))),
+                self.radius + self.radius * np.sin(np.deg2rad(self.current_alpha + 180 % 360 + self.detector_width * ((self.detector_count - 1) - i)))
+            ) for i in range(self.detector_count)
+        ]
+        return self.detectors
 
     def measure(self):
         detectors = self._get_detectors()
@@ -100,16 +79,16 @@ class Tomograph:
             line = d.get_connecting_line_points()
             summ = 0
             for p in line:
-                summ += self.orginal_img[p[0]-1][p[1]-1]
-            average = summ/len(line)
-            self.sinogram[self.step][i] = int(average)
+                summ += self.orginal_img[p[0]][p[1]]
+            average = summ / len(line)
+            self.sinogram[i][self.step] = int(average)
 
     def construct(self):
         detectors = self._get_detectors()
         for i, d in enumerate(detectors):
             line = d.get_connecting_line_points()
             for p in line:
-                self.constructed_img[p[0]-1][p[1]-1] += self.sinogram[self.step][i]
+                self.constructed_img[p[0]][p[1]] += self.sinogram[i][self.step]**3
 
     def normalize(self):
         max_val = self.constructed_img.max()
@@ -122,9 +101,9 @@ class Tomograph:
     def next_step(self):
         self.detectors = None
         self.step += 1
-        self.current_alpha = self.current_alpha + self.alpha if self.current_alpha + self.alpha < 360 else 0
+        self.current_alpha = self.current_alpha + self.alpha
 
 # tmp = Tomograph(90, 1, 2, "./data/test_color.png")
-# tmp.getDetectorPoints()
+# tmp.getDetectorPoints()gi
 # tmp.nextStep()
 # tmp.getDetectorPoints()
