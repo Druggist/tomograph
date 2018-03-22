@@ -49,16 +49,34 @@ class Tomograph:
     def __init__(self, alpha, detector_count, detector_width, image_path):
         self.alpha = alpha
         self.current_alpha = 0
-        self.detector_count = detector_count
+        self.detector_count = detector_count if detector_count % 2 == 1 else detector_count + 1
         self.detector_width = detector_width
         self.orginal_img = np.array(Image.open(image_path).convert('L'))
         self.radius = min(self.orginal_img.shape) / 2
         if self.detector_count * self.detector_width > self.radius * 2:
             sys.exit("Too many detectors or detectors are too wide.")
         self.step = 0
-        self.sinogram = np.zeros((self.detector_count, int(180 / self.alpha)))
+        self.sinogram = np.zeros((int(180 / self.alpha), self.detector_count))
         self.constructed_img = np.ones(self.orginal_img.shape)
         self.detectors = None
+        self.mask = self._generate_mask()
+
+    def get_constructed_img(self):
+        res = np.add(-np.min(self.constructed_img), self.constructed_img)
+        res = np.divide(res, np.max(res))
+        res = np.multiply(res, 255)
+        return res
+
+    def _generate_mask(self):
+        mask = []
+        for i in range(int(-self.detector_count / 2), int(self.detector_count / 2) + 1):
+            if i == 0:
+                mask.append(1)
+            elif i % 2 == 0:
+                mask.append(0)
+            else:
+                mask.append((-4 / (np.pi ** 2)) / (i ** 2))
+        return mask
 
     def _get_detectors(self):
         if self.detectors is not None:
@@ -73,7 +91,7 @@ class Tomograph:
         ]
         return self.detectors
 
-    def measure(self):
+    def measure(self, with_mask=False):
         detectors = self._get_detectors()
         for i, d in enumerate(detectors):
             line = d.get_connecting_line_points()
@@ -81,14 +99,16 @@ class Tomograph:
             for p in line:
                 summ += self.orginal_img[p[0]][p[1]]
             average = summ / len(line)
-            self.sinogram[i][self.step] = int(average)
+            self.sinogram[self.step][i] = int(average)
+        if with_mask:
+            self.sinogram[self.step] = np.convolve(self.sinogram[self.step], self.mask)[int(self.detector_count / 2): -int(self.detector_count / 2)]
 
     def construct(self):
         detectors = self._get_detectors()
         for i, d in enumerate(detectors):
             line = d.get_connecting_line_points()
             for p in line:
-                self.constructed_img[p[0]][p[1]] += self.sinogram[i][self.step]**3
+                self.constructed_img[p[0]][p[1]] += self.sinogram[self.step][i]
 
     def normalize(self):
         max_val = self.constructed_img.max()
