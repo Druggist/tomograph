@@ -4,11 +4,11 @@ from matplotlib.animation import FuncAnimation
 import argparse
 
 parser = argparse.ArgumentParser(description='Process image like tomograph.')
-parser.add_argument('--anim', default=False, help='whether to animate output')
+parser.add_argument('--anim', default=False, type=bool, help='whether to animate output')
 parser.add_argument('--input', default="./data/test_details_240.png", help='input image path')
 parser.add_argument('--alpha', default=5, type=float, help='alpha step')
 parser.add_argument('--count', default=100, type=int, help='count of detectors')
-parser.add_argument('--span', default=1, type=int, help='span between detectors')
+parser.add_argument('--span', default=1, type=float, help='span between detectors')
 
 def update_frame(frame, f, tomograph, axarr):
     print(frame)
