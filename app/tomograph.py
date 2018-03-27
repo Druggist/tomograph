@@ -61,11 +61,11 @@ class Tomograph:
         self.detectors = None
         self.mask = self._generate_mask()
 
-    def get_constructed_img(self):
+    def get_error(self):
         res = np.add(-np.min(self.constructed_img), self.constructed_img)
         res = np.divide(res, np.max(res))
         res = np.multiply(res, 255)
-        return res
+        return np.sqrt(np.mean(np.abs(self.orginal_img - res)**2))
 
     def _generate_mask(self):
         mask = []
