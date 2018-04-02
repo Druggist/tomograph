@@ -1,43 +1,55 @@
-#!/usr/bin/python
+from app.tomograph import Tomograph
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+import argparse
 
-import numpy as np
-import sys
-from PIL import Image
+parser = argparse.ArgumentParser(description='Process image like tomograph.')
+parser.add_argument('--anim', default=False, type=bool, help='whether to animate output')
+parser.add_argument('--input', default="./data/test_details_240.png", help='input image path')
+parser.add_argument('--alpha', default=5, type=float, help='alpha step')
+parser.add_argument('--count', default=100, type=int, help='count of detectors')
+parser.add_argument('--span', default=1, type=float, help='span between detectors')
 
-class Tomograph:
-	def __init__(self, alpha, detectorCount, detectorWidth, imagePath):
-		self.alpha = alpha
-		self.currentAlpha = 0
-		self.detectorCount = detectorCount if detectorCount % 2 == 1 else detectorCount + 1
-		self.detectorWidth = detectorWidth
-		self.orginalImg = np.array(Image.open(imagePath).convert('L'))
-		self.radius = min(len(self.orginalImg), len(self.orginalImg[0])) / 2
-		if self.detectorCount * self.detectorWidth >= self.radius * 2:
-			sys.exit("Too many detectors or detectors are too wide.")
+def update_frame(frame, f, tomograph, axarr):
+    print(frame)
+    tomograph.measure(with_mask=True)
+    tomograph.construct()
+    tomograph.next_step()
 
-	def getAlpha(self):
-		return self.alpha
-
-	def getDetectorCount(self):
-		return self.detectorCount
-
-	def getDetectorWidth(self):
-		return self.detectorWidth
-
-	def getDetectorPoints(self):
-		detectors = []
-		for detector in range(self.detectorCount):
-			#TODO Shift detectors
-			start = (self.radius + self.radius * np.cos(np.deg2rad(self.currentAlpha)), self.radius + self.radius * np.sin(np.deg2rad(self.currentAlpha)))
-			end =  (self.radius + self.radius * np.cos(np.deg2rad(self.currentAlpha + 180 % 360)), self.radius + self.radius * np.sin(np.deg2rad(self.currentAlpha + 180 % 360)))
-			detectors.append((start, end))
-		print(detectors)	
-
-	def nextStep(self):
-		self.currentAlpha = self.currentAlpha + self.alpha if self.currentAlpha + self.alpha < 360 else 0
+    axarr[1].clear()
+    axarr[1].set_title('Sinogram')
+    axarr[1].imshow(tomograph.sinogram, cmap="gray", aspect="auto")
+    axarr[2].clear()
+    axarr[2].set_title('Reconstructed image')
+    axarr[2].imshow(tomograph.constructed_img, cmap="gray", aspect="auto")
+    f.text(0.91, 0.5, 'err: ' + str(tomograph.get_error()), bbox={'facecolor':'red', 'pad': 5})
+    return axarr,
 
 
-tmp = Tomograph(90,1,2,"./data/test_color.png")
-tmp.getDetectorPoints() 
-tmp.nextStep() 
-tmp.getDetectorPoints() 
+def main(args):
+    print(args)
+    tomograph = Tomograph(args.alpha, args.count, args.span, args.input)
+    f, axarr = plt.subplots(1, 3, figsize=(12, 3))
+    axarr[0].set_title('Original image')
+    axarr[0].imshow(tomograph.orginal_img, cmap="gray", aspect="auto")
+
+    if not args.anim:
+        for i in range(int(180 / args.alpha)):
+            print(i, '/', int(180 / args.alpha)-1)
+            tomograph.measure(with_mask=True)
+            tomograph.construct()
+            tomograph.next_step()
+
+        axarr[1].set_title('Sinogram')
+        axarr[1].imshow(tomograph.sinogram, cmap="gray", aspect="auto")
+        axarr[2].set_title('Reconstructed image')
+        axarr[2].imshow(tomograph.constructed_img, cmap="gray", aspect="auto")
+        f.text(0.91, 0.5, 'err: ' + str(tomograph.get_error()), bbox={'facecolor':'red', 'pad': 5})
+    else:
+        anim = FuncAnimation(f, update_frame, init_func=lambda: 0, frames=int(180 / args.alpha), fargs=(f, tomograph, axarr), interval=1, repeat=False)
+    plt.show()
+
+
+if __name__ == "__main__":
+    args = parser.parse_args()
+    main(args)
